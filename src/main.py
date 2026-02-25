@@ -1,6 +1,8 @@
 from session_manager import load_session, save_session
 from llm_client import generate_response
 from summarizer import summarize_history
+from director import analyze_conversation
+import json
 
 MAX_HISTORY = 10
 KEEP_RECENT = 6
@@ -51,15 +53,32 @@ def main():
 
         prompt = build_prompt(session_data)
         ai_reply = generate_response(prompt)
-
         print("AI:", ai_reply)
 
         session_data["history"].append({
             "role": "assistant",
             "content": ai_reply
         })
-
+        
         maybe_summarize(session_data)
+        
+        # …inside loop after maybe_summarize…
+        director_output = analyze_conversation(
+            session_data.get("summary", ""),
+            session_data["history"]
+        )
+
+        # JSON部分だけ抽出
+        start = director_output.find("{")
+        end = director_output.rfind("}") + 1
+        
+        try:
+            parsed = json.loads(director_output[start:end])
+            session_data["analysis"] = parsed["analysis"]
+            session_data["summary"] = parsed["summary"]
+        except Exception as e:
+            print("Director解析に失敗:", e)
+    
         save_session(session_data)
 
 
