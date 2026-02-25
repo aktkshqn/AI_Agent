@@ -1,44 +1,55 @@
-import google.generativeai as genai
+from google import genai
 import os
 import json
+from datetime import datetime
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+# ===== 初期設定 =====
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-MEMORY_FILE = "memory.json"
+SAVE_FILE = "session.json"
 
-# ---- メモリ読み込み ----
-def load_memory():
-    if os.path.exists(MEMORY_FILE):
-        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+# ===== セッション読み込み =====
+if os.path.exists(SAVE_FILE):
+    with open(SAVE_FILE, "r", encoding="utf-8") as f:
+        session_data = json.load(f)
+else:
+    session_data = {
+        "session_id": datetime.now().strftime("%Y%m%d-%H%M%S"),
+        "history": []
+    }
 
-# ---- メモリ保存 ----
-def save_memory(memory):
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(memory, f, ensure_ascii=False, indent=2)
-
-memory = load_memory()
-
+# ===== メインループ =====
 while True:
     user_input = input("You: ")
     if user_input.lower() == "exit":
         break
 
-    # メモリに追加
-    memory.append({"role": "user", "content": user_input})
+    # 履歴に追加
+    session_data["history"].append({
+        "role": "user",
+        "content": user_input
+    })
 
-    # GeminiはChat形式と少し違うのでまとめて渡す
-    conversation_text = "\n".join(
-        [f"{m['role']}: {m['content']}" for m in memory]
+    # モデルに渡す用テキストを構築
+    conversation_text = ""
+    for msg in session_data["history"]:
+        role = "User" if msg["role"] == "user" else "AI"
+        conversation_text += f"{role}: {msg['content']}\n"
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=conversation_text,
     )
 
-    response = model.generate_content(conversation_text)
-    reply = response.text
+    ai_reply = response.text
+    print("AI:", ai_reply)
 
-    print("AI:", reply)
+    # AI返答を履歴に追加
+    session_data["history"].append({
+        "role": "assistant",
+        "content": ai_reply
+    })
 
-    memory.append({"role": "assistant", "content": reply})
-
-    save_memory(memory)
+    # JSON保存
+    with open(SAVE_FILE, "w", encoding="utf-8") as f:
+        json.dump(session_data, f, ensure_ascii=False, indent=2)
