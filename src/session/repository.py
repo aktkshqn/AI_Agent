@@ -6,8 +6,8 @@ from .storage import load_json, save_json
 
 
 def _new_session_id() -> str:
-    # Minute-level ID with collision-safe suffix.
-    base = datetime.now().strftime("%Y%m%d-%H%M")
+    # Second-level ID with collision-safe suffix.
+    base = datetime.now().strftime("%Y%m%d-%H%M%S")
     paths = session_paths(base)
     if not load_json(paths["state"], {}):
         return base
@@ -26,14 +26,19 @@ def load_session(session_id=None, create_new=False):
         state = new_session_payload(new_id)
         paths = session_paths(new_id)
 
-        all_summary = load_json(paths["global_summary"], {"summary": ""})
+        summary_index = load_json(paths["summary_index"], {})
+        legacy_summary = load_json(paths["legacy_summary"], {"summary": ""})
+        all_summary_text = summary_index.get("global_summary", legacy_summary.get("summary", ""))
         all_full = load_json(paths["global_full"], {"messages": []})
         all_essence = load_json(
             paths["global_essence"],
-            {"essence": {"summary": "", "noise_removed_points": [], "open_questions": []}},
+            load_json(
+                paths["legacy_essence"],
+                {"essence": {"summary": "", "noise_removed_points": [], "open_questions": []}},
+            ),
         )
 
-        state["summary"] = all_summary.get("summary", "")
+        state["summary"] = all_summary_text
         state["full_history"] = all_full.get("messages", [])
         state["essence"] = all_essence.get("essence", state.get("essence", {}))
         return ensure_memory_shape(state)
@@ -42,14 +47,19 @@ def load_session(session_id=None, create_new=False):
     if target_id:
         paths = session_paths(target_id)
         state = load_json(paths["state"], new_session_payload(target_id))
-        all_summary = load_json(paths["global_summary"], {"summary": state.get("summary", "")})
+        summary_index = load_json(paths["summary_index"], {})
+        legacy_summary = load_json(paths["legacy_summary"], {"summary": state.get("summary", "")})
+        all_summary_text = summary_index.get("global_summary", legacy_summary.get("summary", state.get("summary", "")))
         all_full = load_json(paths["global_full"], {"messages": state.get("full_history", [])})
         all_essence = load_json(
             paths["global_essence"],
-            {"essence": state.get("essence", {"summary": "", "noise_removed_points": [], "open_questions": []})},
+            load_json(
+                paths["legacy_essence"],
+                {"essence": state.get("essence", {"summary": "", "noise_removed_points": [], "open_questions": []})},
+            ),
         )
 
-        state["summary"] = all_summary.get("summary", state.get("summary", ""))
+        state["summary"] = all_summary_text
         state["full_history"] = all_full.get("messages", state.get("full_history", []))
         state["essence"] = all_essence.get("essence", state.get("essence", {}))
         return ensure_memory_shape(state)
@@ -70,11 +80,9 @@ def save_session(session_data: dict):
         "updated_at": updated_at,
     }
 
-    summary_doc = {
-        "scope": "all",
-        "summary": session_data["summary"],
-        "updated_at": updated_at,
-    }
+    summary_index = load_json(paths["summary_index"], {"global_summary": "", "topics": []})
+    summary_index["global_summary"] = session_data["summary"]
+    summary_index["updated_at"] = updated_at
     full_doc = {
         "scope": "all",
         "messages": session_data["full_history"],
@@ -87,6 +95,6 @@ def save_session(session_data: dict):
     }
 
     save_json(paths["state"], state_doc)
-    save_json(paths["global_summary"], summary_doc)
+    save_json(paths["summary_index"], summary_index)
     save_json(paths["global_full"], full_doc)
     save_json(paths["global_essence"], essence_doc)

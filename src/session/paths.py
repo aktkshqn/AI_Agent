@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from .config import DATA_DIR
+from .config import CURATOR_DIR, SESSIONS_DIR, STRATEGY_DIR, SUMMARY_DIR
 
 
 def date_from_session_id(session_id: str) -> str:
@@ -11,7 +11,7 @@ def date_from_session_id(session_id: str) -> str:
 
 
 def session_dir_from_date(date_key: str) -> str:
-    date_dir = os.path.join(DATA_DIR, date_key)
+    date_dir = os.path.join(SESSIONS_DIR, date_key)
     os.makedirs(date_dir, exist_ok=True)
     return date_dir
 
@@ -21,15 +21,19 @@ def session_paths(session_id: str) -> dict:
     base = session_dir_from_date(date_key)
     return {
         "state": os.path.join(base, f"session_{session_id}.json"),
-        "global_summary": os.path.join(DATA_DIR, "summary_all.json"),
-        "global_full": os.path.join(DATA_DIR, "full_all.json"),
-        "global_essence": os.path.join(DATA_DIR, "essence_all.json"),
+        "summary_index": os.path.join(SUMMARY_DIR, "summary_index.json"),
+        "global_full": os.path.join(SESSIONS_DIR, "full_all.json"),
+        "global_essence": os.path.join(CURATOR_DIR, "essence_all.json"),
+        "global_strategy": os.path.join(STRATEGY_DIR, "strategy_all.json"),
+        # Read fallback for pre-migration files.
+        "legacy_summary": os.path.join(SESSIONS_DIR, "summary_all.json"),
+        "legacy_essence": os.path.join(SESSIONS_DIR, "essence_all.json"),
     }
 
 
 def find_latest_session_id() -> str | None:
     latest = None
-    for _, _, files in os.walk(DATA_DIR):
+    for _, _, files in os.walk(SESSIONS_DIR):
         for file_name in files:
             if not (file_name.startswith("session_") and file_name.endswith(".json")):
                 continue

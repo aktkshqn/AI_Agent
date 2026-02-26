@@ -1,7 +1,9 @@
 from llm import generate_summary_response
 
+from .merge import merge_summary
 from .parser import extract_json_object
 from .prompt_builder import build_curator_prompt
+from .schema import empty_essence, normalize_curator_output
 
 
 def curate_memory(recent_history: list[dict], current_summary: str) -> dict:
@@ -11,19 +13,9 @@ def curate_memory(recent_history: list[dict], current_summary: str) -> dict:
     if not parsed:
         return {
             "summary": current_summary,
-            "essence": {
-                "summary": "",
-                "noise_removed_points": [],
-                "open_questions": [],
-            },
+            "essence": empty_essence(),
         }
 
-    essence = parsed.get("essence", {})
-    return {
-        "summary": parsed.get("summary", current_summary),
-        "essence": {
-            "summary": essence.get("summary", ""),
-            "noise_removed_points": essence.get("noise_removed_points", []),
-            "open_questions": essence.get("open_questions", []),
-        },
-    }
+    normalized = normalize_curator_output(parsed, current_summary)
+    normalized["summary"] = merge_summary(current_summary, normalized["summary"])
+    return normalized
