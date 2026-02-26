@@ -1,85 +1,84 @@
-from session_manager import load_session, save_session
+﻿from session_manager import load_session, save_session
 from llm_client import generate_response
-from summarizer import summarize_history
-from director import analyze_conversation
-import json
+from summarizer import summarize_and_extract
 
-MAX_HISTORY = 10
-KEEP_RECENT = 6
+MAX_HISTORY = 12
+KEEP_RECENT = 8
 
-def build_prompt(session_data):
-    conversation_text = ""
+
+def build_prompt(session_data: dict) -> str:
+    conversation_text = (
+        "You are a supportive creative partner for TRPG campaign planning.\n"
+        "Keep responses practical and concise.\n\n"
+    )
 
     if session_data.get("summary"):
-        conversation_text += f"これまでの要約:\n{session_data['summary']}\n\n"
+        conversation_text += f"Session summary so far:\n{session_data['summary']}\n\n"
 
     for msg in session_data["history"]:
         role = "User" if msg["role"] == "user" else "AI"
         conversation_text += f"{role}: {msg['content']}\n"
 
+    conversation_text += "AI:"
     return conversation_text
 
 
-def maybe_summarize(session_data):
-    if len(session_data["history"]) > MAX_HISTORY:
-        old_part = session_data["history"][:-KEEP_RECENT]
-        recent_part = session_data["history"][-KEEP_RECENT:]
+def maybe_summarize(session_data: dict) -> None:
+    if len(session_data["history"]) <= MAX_HISTORY:
+        return
 
-        new_summary = summarize_history(old_part)
+    old_part = session_data["history"][:-KEEP_RECENT]
+    recent_part = session_data["history"][-KEEP_RECENT:]
 
-        if session_data.get("summary"):
-            combined = session_data["summary"] + "\n" + new_summary
-            session_data["summary"] = summarize_history(
-                [{"role": "user", "content": combined}]
-            )
-        else:
-            session_data["summary"] = new_summary
+    try:
+        extracted = summarize_and_extract(old_part)
+        new_summary = extracted.get("summary", "").strip()
+        if new_summary:
+            if session_data.get("summary"):
+                session_data["summary"] += "\n" + new_summary
+            else:
+                session_data["summary"] = new_summary
+        session_data["analysis"] = {
+            "tags": extracted.get("tags", []),
+            "uncertain_points": extracted.get("uncertain_points", []),
+        }
+    except Exception as exc:
+        print(f"[warn] summarize failed: {exc}")
 
-        session_data["history"] = recent_part
+    session_data["history"] = recent_part
 
 
-def main():
+def main() -> None:
     session_data = load_session()
+    print("CUI chat started. Type 'exit' to finish.")
 
     while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
+        try:
+            user_input = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nBye.")
             break
 
-        session_data["history"].append({
-            "role": "user",
-            "content": user_input
-        })
+        if not user_input:
+            continue
+        if user_input.lower() in {"exit", "quit"}:
+            break
 
-        prompt = build_prompt(session_data)
-        ai_reply = generate_response(prompt)
-        print("AI:", ai_reply)
+        session_data["history"].append({"role": "user", "content": user_input})
 
-        session_data["history"].append({
-            "role": "assistant",
-            "content": ai_reply
-        })
-        
-        maybe_summarize(session_data)
-        
-        # …inside loop after maybe_summarize…
-        director_output = analyze_conversation(
-            session_data.get("summary", ""),
-            session_data["history"]
-        )
-
-        # JSON部分だけ抽出
-        start = director_output.find("{")
-        end = director_output.rfind("}") + 1
-        
         try:
-            parsed = json.loads(director_output[start:end])
-            session_data["analysis"] = parsed["analysis"]
-            session_data["summary"] = parsed["summary"]
-        except Exception as e:
-            print("Director解析に失敗:", e)
-    
+            ai_reply = generate_response(build_prompt(session_data))
+        except Exception as exc:
+            print(f"AI: [error] failed to call model: {exc}")
+            continue
+
+        print(f"AI: {ai_reply}")
+        session_data["history"].append({"role": "assistant", "content": ai_reply})
+
+        maybe_summarize(session_data)
         save_session(session_data)
+
+    save_session(session_data)
 
 
 if __name__ == "__main__":
