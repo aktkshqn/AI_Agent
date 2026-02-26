@@ -7,13 +7,6 @@ MAX_HISTORY = 12
 KEEP_RECENT = 8
 
 
-def sync_conversation_memory(session_data: dict) -> None:
-    memories = session_data.setdefault("memories", {})
-    conversation = memories.setdefault("conversation", {})
-    conversation["recent_history"] = list(session_data.get("history", []))
-    conversation["past_summary"] = session_data.get("summary", "")
-
-
 def update_director_memories(session_data: dict) -> None:
     memories = session_data.setdefault("memories", {})
     try:
@@ -31,7 +24,6 @@ def update_director_memories(session_data: dict) -> None:
 
 def build_prompt(session_data: dict) -> str:
     memories = session_data.get("memories", {})
-    conversation = memories.get("conversation", {})
     essence = memories.get("essence", {})
     strategy = memories.get("strategy", {})
 
@@ -40,8 +32,8 @@ def build_prompt(session_data: dict) -> str:
         "Keep responses practical and concise.\n\n"
     )
 
-    if conversation.get("past_summary"):
-        prompt += f"Past summary:\n{conversation['past_summary']}\n\n"
+    if session_data.get("summary"):
+        prompt += f"Past summary:\n{session_data['summary']}\n\n"
 
     points = essence.get("noise_removed_points", [])
     if points:
@@ -51,7 +43,7 @@ def build_prompt(session_data: dict) -> str:
     if strategy.get("policy"):
         prompt += f"Current policy:\n{strategy['policy']}\n\n"
 
-    for msg in conversation.get("recent_history", session_data.get("history", [])):
+    for msg in session_data.get("history", []):
         role = "User" if msg["role"] == "user" else "AI"
         prompt += f"{role}: {msg['content']}\n"
 
@@ -61,7 +53,6 @@ def build_prompt(session_data: dict) -> str:
 
 def maybe_summarize(session_data: dict) -> None:
     if len(session_data["history"]) <= MAX_HISTORY:
-        sync_conversation_memory(session_data)
         return
 
     old_part = session_data["history"][:-KEEP_RECENT]
@@ -83,11 +74,10 @@ def maybe_summarize(session_data: dict) -> None:
         print(f"[warn] summarize failed: {exc}")
 
     session_data["history"] = recent_part
-    sync_conversation_memory(session_data)
 
 
 def main() -> None:
-    session_data = load_session()
+    session_data = load_session(create_new=True)  # New chat state, shared daily summary/full
     print("CUI chat started. Type 'exit' to finish.")
 
     while True:
@@ -104,8 +94,7 @@ def main() -> None:
 
         user_msg = {"role": "user", "content": user_input}
         session_data["history"].append(user_msg)
-        session_data["memories"]["full_history"].append(user_msg)
-        sync_conversation_memory(session_data)
+        session_data["full_history"].append(user_msg)
 
         try:
             ai_reply = generate_response(build_prompt(session_data))
@@ -117,7 +106,7 @@ def main() -> None:
 
         ai_msg = {"role": "assistant", "content": ai_reply}
         session_data["history"].append(ai_msg)
-        session_data["memories"]["full_history"].append(ai_msg)
+        session_data["full_history"].append(ai_msg)
 
         maybe_summarize(session_data)
         update_director_memories(session_data)
@@ -128,3 +117,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
