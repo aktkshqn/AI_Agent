@@ -23,6 +23,7 @@ def session_paths(session_id: str) -> dict:
         "state": os.path.join(base, f"session_{session_id}.json"),
         "global_summary": os.path.join(DATA_DIR, "summary_all.json"),
         "global_full": os.path.join(DATA_DIR, "full_all.json"),
+        "global_essence": os.path.join(DATA_DIR, "essence_all.json"),
     }
 
 
