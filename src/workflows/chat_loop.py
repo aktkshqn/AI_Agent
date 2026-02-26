@@ -1,6 +1,6 @@
 from Curator import curate_memory
 from Dialog import generate_dialog_reply
-from session_manager import load_session, save_session
+from session import load_session, save_session
 from utils.text_tools import trim_history
 
 MAX_HISTORY = 12

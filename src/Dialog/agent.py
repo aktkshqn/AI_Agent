@@ -1,4 +1,4 @@
-from llm import generate_dialog_response
+from llm_client import generate_dialog_response
 
 from .prompt_builder import build_dialog_prompt
 from .validator import normalize_dialog_reply

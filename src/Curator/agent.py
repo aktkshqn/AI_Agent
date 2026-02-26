@@ -1,4 +1,4 @@
-from llm import generate_summary_response
+from llm_client import generate_summary_response
 
 from .merge import merge_summary
 from .parser import extract_json_object
