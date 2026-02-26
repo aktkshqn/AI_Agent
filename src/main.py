@@ -1,30 +1,67 @@
 ﻿from session_manager import load_session, save_session
 from llm_client import generate_response
 from summarizer import summarize_and_extract
+from director import derive_essence_and_strategy
 
 MAX_HISTORY = 12
 KEEP_RECENT = 8
 
 
+def sync_conversation_memory(session_data: dict) -> None:
+    memories = session_data.setdefault("memories", {})
+    conversation = memories.setdefault("conversation", {})
+    conversation["recent_history"] = list(session_data.get("history", []))
+    conversation["past_summary"] = session_data.get("summary", "")
+
+
+def update_director_memories(session_data: dict) -> None:
+    memories = session_data.setdefault("memories", {})
+    try:
+        result = derive_essence_and_strategy(
+            session_data.get("summary", ""),
+            session_data.get("history", []),
+        )
+    except Exception as exc:
+        print(f"[warn] director update failed: {exc}")
+        return
+
+    memories["essence"] = result.get("essence", memories.get("essence", {}))
+    memories["strategy"] = result.get("strategy", memories.get("strategy", {}))
+
+
 def build_prompt(session_data: dict) -> str:
-    conversation_text = (
+    memories = session_data.get("memories", {})
+    conversation = memories.get("conversation", {})
+    essence = memories.get("essence", {})
+    strategy = memories.get("strategy", {})
+
+    prompt = (
         "You are a supportive creative partner for TRPG campaign planning.\n"
         "Keep responses practical and concise.\n\n"
     )
 
-    if session_data.get("summary"):
-        conversation_text += f"Session summary so far:\n{session_data['summary']}\n\n"
+    if conversation.get("past_summary"):
+        prompt += f"Past summary:\n{conversation['past_summary']}\n\n"
 
-    for msg in session_data["history"]:
+    points = essence.get("noise_removed_points", [])
+    if points:
+        prompt += "Planning essence:\n"
+        prompt += "\n".join(f"- {p}" for p in points) + "\n\n"
+
+    if strategy.get("policy"):
+        prompt += f"Current policy:\n{strategy['policy']}\n\n"
+
+    for msg in conversation.get("recent_history", session_data.get("history", [])):
         role = "User" if msg["role"] == "user" else "AI"
-        conversation_text += f"{role}: {msg['content']}\n"
+        prompt += f"{role}: {msg['content']}\n"
 
-    conversation_text += "AI:"
-    return conversation_text
+    prompt += "AI:"
+    return prompt
 
 
 def maybe_summarize(session_data: dict) -> None:
     if len(session_data["history"]) <= MAX_HISTORY:
+        sync_conversation_memory(session_data)
         return
 
     old_part = session_data["history"][:-KEEP_RECENT]
@@ -46,6 +83,7 @@ def maybe_summarize(session_data: dict) -> None:
         print(f"[warn] summarize failed: {exc}")
 
     session_data["history"] = recent_part
+    sync_conversation_memory(session_data)
 
 
 def main() -> None:
@@ -64,7 +102,10 @@ def main() -> None:
         if user_input.lower() in {"exit", "quit"}:
             break
 
-        session_data["history"].append({"role": "user", "content": user_input})
+        user_msg = {"role": "user", "content": user_input}
+        session_data["history"].append(user_msg)
+        session_data["memories"]["full_history"].append(user_msg)
+        sync_conversation_memory(session_data)
 
         try:
             ai_reply = generate_response(build_prompt(session_data))
@@ -73,9 +114,13 @@ def main() -> None:
             continue
 
         print(f"AI: {ai_reply}")
-        session_data["history"].append({"role": "assistant", "content": ai_reply})
+
+        ai_msg = {"role": "assistant", "content": ai_reply}
+        session_data["history"].append(ai_msg)
+        session_data["memories"]["full_history"].append(ai_msg)
 
         maybe_summarize(session_data)
+        update_director_memories(session_data)
         save_session(session_data)
 
     save_session(session_data)
