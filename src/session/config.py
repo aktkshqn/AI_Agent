@@ -4,11 +4,8 @@ import os
 BASE_DATA_DIR = "data"
 SESSIONS_DIR = os.path.join(BASE_DATA_DIR, "sessions")
 SUMMARY_DIR = os.path.join(BASE_DATA_DIR, "summary")
-SUMMARY_TOPICS_DIR = os.path.join(SUMMARY_DIR, "topics")
 CURATOR_DIR = os.path.join(BASE_DATA_DIR, "curator")
-CURATOR_TOPIC_ESSENCE_DIR = os.path.join(CURATOR_DIR, "topic_essence")
 STRATEGY_DIR = os.path.join(BASE_DATA_DIR, "strategy")
-STRATEGY_TOPIC_DIR = os.path.join(STRATEGY_DIR, "topic_strategy")
 META_DIR = os.path.join(BASE_DATA_DIR, "meta")
 
 
@@ -27,11 +24,8 @@ for _path in (
     BASE_DATA_DIR,
     SESSIONS_DIR,
     SUMMARY_DIR,
-    SUMMARY_TOPICS_DIR,
     CURATOR_DIR,
-    CURATOR_TOPIC_ESSENCE_DIR,
     STRATEGY_DIR,
-    STRATEGY_TOPIC_DIR,
     META_DIR,
 ):
     _ensure_dir(_path)
