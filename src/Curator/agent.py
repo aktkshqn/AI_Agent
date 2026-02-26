@@ -1,4 +1,4 @@
-from llm_client import generate_response
+from llm import generate_summary_response
 
 from .parser import extract_json_object
 from .prompt_builder import build_curator_prompt
@@ -6,7 +6,7 @@ from .prompt_builder import build_curator_prompt
 
 def curate_memory(recent_history: list[dict], current_summary: str) -> dict:
     prompt = build_curator_prompt(recent_history=recent_history, current_summary=current_summary)
-    raw = generate_response(prompt)
+    raw = generate_summary_response(prompt)
     parsed = extract_json_object(raw)
     if not parsed:
         return {
