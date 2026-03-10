@@ -4,13 +4,13 @@ import time
 from llm import generate_with_gemini, generate_with_groq
 
 _cooldown_until = {
-    "dialog": 0.0,
-    "summary": 0.0,
+    "dialog_gemini": 0.0,
+    "dialog_groq": 0.0,
+    "summary_groq": 0.0,
 }
 
 
 def _parse_retry_seconds(text: str) -> int:
-    # Groq/OpenAI-style: Retry-After is often in message body.
     m = re.search(r"retry[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*s", text, flags=re.IGNORECASE)
     if m:
         return max(1, int(float(m.group(1))))
@@ -39,21 +39,22 @@ def _call_with_cooldown(channel: str, fn, prompt: str) -> str:
 
 def generate_dialog_response(prompt: str) -> str:
     try:
-        return _call_with_cooldown("dialog", generate_with_gemini, prompt)
-    except RuntimeError as exc:
-        # Minimal fallback so conversation does not break.
-        msg = str(exc)
-        if "cooling down" in msg or "rate-limited" in msg:
-            return "うん。続けて。"
-        raise
+        return _call_with_cooldown("dialog_gemini", generate_with_gemini, prompt)
+    except Exception:
+        try:
+            return _call_with_cooldown("dialog_groq", generate_with_groq, prompt)
+        except RuntimeError as exc:
+            msg = str(exc)
+            if "cooling down" in msg or "rate-limited" in msg:
+                return "Okay. Please continue."
+            raise
 
 
 def generate_summary_response(prompt: str) -> str:
-    return _call_with_cooldown("summary", generate_with_groq, prompt)
+    return _call_with_cooldown("summary_groq", generate_with_groq, prompt)
 
 
 def generate_response(prompt: str) -> str:
-    # Backward compatible default path.
     return generate_dialog_response(prompt)
 
 
