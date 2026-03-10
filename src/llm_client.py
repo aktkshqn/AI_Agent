@@ -1,12 +1,14 @@
 import re
 import time
 
-from llm import generate_with_gemini, generate_with_groq
+from llm import generate_with_gemini, generate_with_groq, generate_with_openrouter
 
 _cooldown_until = {
     "dialog_gemini": 0.0,
     "dialog_groq": 0.0,
+    "dialog_openrouter": 0.0,
     "summary_groq": 0.0,
+    "summary_openrouter": 0.0,
 }
 
 
@@ -39,19 +41,29 @@ def _call_with_cooldown(channel: str, fn, prompt: str) -> str:
 
 def generate_dialog_response(prompt: str) -> str:
     try:
-        return _call_with_cooldown("dialog_gemini", generate_with_gemini, prompt)
+        # メイン: Groq (高速ダイアローグ用) を優先してみる
+        return _call_with_cooldown("dialog_groq", generate_with_groq, prompt)
     except Exception:
         try:
-            return _call_with_cooldown("dialog_groq", generate_with_groq, prompt)
-        except RuntimeError as exc:
-            msg = str(exc)
-            if "cooling down" in msg or "rate-limited" in msg:
-                return "Okay. Please continue."
-            raise
-
+            # 代役1: 本家Gemini API
+            return _call_with_cooldown("dialog_gemini", generate_with_gemini, prompt)
+        except Exception:
+            try:
+                # 代役2: OpenRouter の無料枠モデル
+                return _call_with_cooldown("dialog_openrouter", generate_with_openrouter, prompt)
+            except RuntimeError as exc:
+                msg = str(exc)
+                if "cooling down" in msg or "rate-limited" in msg:
+                    return "Okay. Please continue."
+                raise
 
 def generate_summary_response(prompt: str) -> str:
-    return _call_with_cooldown("summary_groq", generate_with_groq, prompt)
+    try:
+        # メイン: 本家Gemini 或いは Groq
+        return _call_with_cooldown("summary_groq", generate_with_groq, prompt)
+    except Exception:
+        # 代役: OpenRouter
+        return _call_with_cooldown("summary_openrouter", generate_with_openrouter, prompt)
 
 
 def generate_response(prompt: str) -> str:

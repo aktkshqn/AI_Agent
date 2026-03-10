@@ -1,5 +1,6 @@
 from .gemini import generate_with_gemini
 from .groq import generate_with_groq
+from .openrouter import generate_with_openrouter
 
 
 def generate_dialog_response(prompt: str) -> str:

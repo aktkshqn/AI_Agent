@@ -19,9 +19,11 @@ def run_chat_loop() -> None:
     session_data = load_session(create_new=True)
     print("CUI chat started. Type 'exit' to finish.")
     if not os.getenv("GROQ_API_KEY"):
-        print("[warn] GROQ_API_KEY is not set. Curator summary updates may fail.")
+        print("[warn] GROQ_API_KEY is not set. Dialog replies may fail.")
     if not os.getenv("GOOGLE_API_KEY"):
-        print("[warn] GOOGLE_API_KEY is not set. Dialog replies may fail.")
+        print("[warn] GOOGLE_API_KEY is not set.")
+    if not os.getenv("OPENROUTER_API_KEY"):
+        print("[warn] OPENROUTER_API_KEY is not set. Fallback to OpenRouter may fail.")
 
     while True:
         try:
